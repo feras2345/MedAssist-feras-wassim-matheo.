@@ -21,12 +21,16 @@ END $$;
 -- ── TEST C2 : Les valeurs M, F, NB, U sont acceptées ──────────────────────
 DO $$
 BEGIN
-    -- Test d'insertion avec chaque valeur autorisée
-    INSERT INTO patients (first_name, last_name, birth_date, gender, ssn)
-    VALUES ('Test_NB', 'Gender_NB', '2000-01-01', 'NB', '100001234567890');
+    -- Test d'insertion avec chaque valeur autorisée (post-V13 : ssn chiffré)
+    INSERT INTO patients (first_name, last_name, birth_date, gender, ssn_encrypted, ssn_hash)
+    VALUES ('Test_NB', 'Gender_NB', '2000-01-01', 'NB',
+            pgp_sym_encrypt('100001234567890', 'MedAssist-AES256-HDS-Key-2024!'),
+            encode(digest('100001234567890', 'sha256'), 'hex'));
 
-    INSERT INTO patients (first_name, last_name, birth_date, gender, ssn)
-    VALUES ('Test_U', 'Gender_U', '2000-01-01', 'U', '100001234567891');
+    INSERT INTO patients (first_name, last_name, birth_date, gender, ssn_encrypted, ssn_hash)
+    VALUES ('Test_U', 'Gender_U', '2000-01-01', 'U',
+            pgp_sym_encrypt('100001234567891', 'MedAssist-AES256-HDS-Key-2024!'),
+            encode(digest('100001234567891', 'sha256'), 'hex'));
 
     -- Nettoyage
     DELETE FROM patients WHERE first_name IN ('Test_NB', 'Test_U');
@@ -40,8 +44,10 @@ END $$;
 DO $$
 BEGIN
     BEGIN
-        INSERT INTO patients (first_name, last_name, birth_date, gender, ssn)
-        VALUES ('Test_X', 'Gender_X', '2000-01-01', 'X', '100001234567892');
+        INSERT INTO patients (first_name, last_name, birth_date, gender, ssn_encrypted, ssn_hash)
+        VALUES ('Test_X', 'Gender_X', '2000-01-01', 'X',
+                pgp_sym_encrypt('100001234567892', 'MedAssist-AES256-HDS-Key-2024!'),
+                encode(digest('100001234567892', 'sha256'), 'hex'));
         -- Si on arrive ici, le CHECK ne fonctionne pas
         DELETE FROM patients WHERE first_name = 'Test_X';
         RAISE EXCEPTION 'TEST C3 ÉCHOUÉ : valeur X acceptée (devrait être rejetée)';
