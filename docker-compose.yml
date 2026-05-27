@@ -1,0 +1,62 @@
+##############################################################################
+# MedAssist – Plateforme de gestion de dossiers médicaux (350 cabinets)
+# Stack : PostgreSQL 16 · Flyway 10 · Docker
+# Conformité : HDS / RGPD – SLA 99.9 % – Zéro perte de données
+##############################################################################
+
+services:
+  # ── PostgreSQL 16 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: medassist-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medassist
+      POSTGRES_USER: medassist_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-S3cur3MedAssist!2024}
+      # Clé de chiffrement SSN (Évolution D – pgcrypto)
+      MEDASSIST_ENCRYPTION_KEY: ${MEDASSIST_ENCRYPTION_KEY:-MedAssist-AES256-HDS-Key-2024!}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medassist_admin -d medassist"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command:
+      - "postgres"
+      - "-c" 
+      - "shared_preload_libraries=pg_stat_statements"
+      - "-c"
+      - "log_statement=ddl"
+      - "-c"
+      - "log_min_duration_statement=500"
+      - "-c"
+      - "wal_level=replica"
+
+  # ── Flyway 10 ────────────────────────────────────────────────────────────
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: medassist-flyway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/medassist
+      FLYWAY_USER: medassist_admin
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-S3cur3MedAssist!2024}
+      FLYWAY_SCHEMAS: public
+      FLYWAY_BASELINE_ON_MIGRATE: "false"
+      FLYWAY_VALIDATE_ON_MIGRATE: "true"
+      FLYWAY_CONNECT_RETRIES: 5
+    volumes:
+      - ./flyway/sql:/flyway/sql
+    command: migrate
+
+volumes:
+  pg_data:
+    driver: local
